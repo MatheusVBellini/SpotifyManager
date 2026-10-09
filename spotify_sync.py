@@ -30,6 +30,8 @@ SCOPES = frozenset({"playlist-read-private", "playlist-read-collaborative",
 API = "https://api.spotify.com/v1"
 TOKEN_URL = "https://accounts.spotify.com/api/token"
 URI_PATTERN = re.compile(r"spotify:(track|episode):[A-Za-z0-9]{22}\Z")
+QUOTA_RETRY_BASE = 60 * 60
+QUOTA_RETRY_MAX = 24 * 60 * 60
 
 
 class SyncError(Exception):
@@ -300,7 +302,20 @@ class Spotify:
     def request(self, method, path, body=None):
         state = self.store.data
         if state.get("quota_blocked"):
-            raise SyncError("Spotify quota was exceeded. Reduce scheduling frequency and use resume after quota is available.")
+            retry_at = state.get("not_before")
+            if (not isinstance(retry_at, (int, float)) or isinstance(retry_at, bool)
+                    or not math.isfinite(retry_at) or retry_at <= 0):
+                # Older pauses without a usable deadline get a conservative cooldown.
+                retry_at = time.time() + QUOTA_RETRY_BASE
+                state["not_before"] = retry_at
+                self.store.save()
+            remaining = math.ceil(retry_at - time.time())
+            if remaining > 0:
+                raise SyncError(f"Spotify quota cooldown active for {remaining} more seconds. "
+                                "A later scheduled run will retry automatically.", 1)
+            state.pop("quota_blocked", None)
+            self.store.save()
+            LOG.info("Quota cooldown elapsed; retrying Spotify automatically.")
         if state.get("not_before", 0) > time.time():
             raise SyncError(f"Spotify cooldown active for {math.ceil(state['not_before'] - time.time())} more seconds.", 1)
         refreshed = False
@@ -332,12 +347,19 @@ class Spotify:
                         delay = 5.0
                     if not math.isfinite(delay) or delay < 0:
                         delay = 5.0
-                    state["not_before"] = time.time() + delay
                     if reason == "QUOTA_EXCEEDED":
+                        failures = state.get("quota_failures", 0)
+                        if type(failures) is not int or failures < 0:
+                            failures = 0
+                        backoff = min(QUOTA_RETRY_BASE * 2 ** min(failures, 5), QUOTA_RETRY_MAX)
+                        delay = max(delay, backoff)
+                        state["quota_failures"] = min(failures + 1, 6)
                         state["quota_blocked"] = True
+                    state["not_before"] = time.time() + delay
                     self.store.save()
                     if reason == "QUOTA_EXCEEDED":
-                        raise SyncError("Spotify returned QUOTA_EXCEEDED; paused requests. See README recovery instructions.") from exc
+                        raise SyncError(f"Spotify returned QUOTA_EXCEEDED; requests paused for at least "
+                                        f"{math.ceil(delay)} seconds. A later scheduled run will retry automatically.", 1) from exc
                     if delay > 120 or attempt == 5:
                         raise SyncError(f"Spotify rate limited requests; retry after at least {math.ceil(delay)} seconds.", 1) from exc
                     LOG.warning("Rate limited; waiting %.1f seconds.", delay)
@@ -509,6 +531,7 @@ def sync(api, store, parents, order, all_ids, dry_run=False, include_episodes=Fa
     for pid in all_ids:
         if views[pid].get("skipped"):
             LOG.warning("Playlist %s: skipped %d local/null/unsupported entries.", pid, views[pid]["skipped"])
+    store.data.pop("quota_failures", None)
     store.save()
     LOG.info("%s complete: %d %s.", "Preview" if dry_run else "Sync", total,
              "proposed additions" if dry_run else "confirmed additions")

@@ -74,7 +74,9 @@ class SyncTests(unittest.TestCase):
         api = FakeAPI(self.store, {A: [track("x")], B: [track("y"), track("y")],
                                   C: [track("z"), track("y")], D: [track("x")]})
         rows = [{"parent": A, "children": [B, D]}, {"parent": B, "children": [C]}]
+        self.store.data["quota_failures"] = 3
         self.run_sync(api, rows)
+        self.assertNotIn("quota_failures", self.store.data)
         self.assertEqual(api.posts, [(B, [track("z")["uri"]]),
                                      (A, [track("y")["uri"], track("z")["uri"]])])
         self.run_sync(api, rows)
@@ -256,15 +258,77 @@ class HTTPTests(unittest.TestCase):
 
     def test_quota_pause_survives_process_restart(self):
         error = http_error(429, {"error": {"reason": "QUOTA_EXCEEDED"}})
-        with patch.object(s, "urlopen", side_effect=error):
+        with patch.object(s.time, "time", return_value=1000), patch.object(s, "urlopen", side_effect=error) as request:
             with self.assertRaises(s.SyncError) as caught:
                 self.api.request("GET", "/me")
-            self.assertEqual(caught.exception.code, 2)
+            self.assertEqual(caught.exception.code, 1)
+            self.assertEqual(request.call_count, 1)
+        self.assertEqual(s.read_json(self.store.path)["not_before"], 1000 + s.QUOTA_RETRY_BASE)
         restarted = s.Spotify(self.oauth, s.Store(self.store.path))
-        with patch.object(s, "urlopen") as request:
+        token_calls = list(self.oauth.calls)
+        with patch.object(s.time, "time", return_value=1001), patch.object(s, "urlopen") as request:
             with self.assertRaises(s.SyncError):
                 restarted.request("GET", "/me")
             request.assert_not_called()
+        self.assertEqual(self.oauth.calls, token_calls)
+
+    def test_saved_quota_pause_retries_at_deadline_without_resume(self):
+        # Match a pause saved by the previous version, with no new retry counter.
+        pending = {"parent": A, "items": [track("x")]}
+        self.store.data.update(quota_blocked=True, not_before=2000, pending=pending)
+        self.store.save()
+        restarted = s.Spotify(self.oauth, s.Store(self.store.path))
+        with patch.object(s.time, "time", return_value=2000), patch.object(s, "urlopen", return_value=response({"id": "me"})) as request:
+            self.assertEqual(restarted.request("GET", "/me"), {"id": "me"})
+        self.assertEqual(request.call_count, 1)
+        saved = s.read_json(self.store.path)
+        self.assertNotIn("quota_blocked", saved)
+        self.assertEqual(saved["pending"], pending)
+        self.assertEqual(saved["not_before"], 2000)
+
+    def test_repeated_quota_failure_extends_pause_and_keeps_pending(self):
+        pending = {"parent": A, "items": [track("x")]}
+        self.store.data.update(quota_blocked=True, not_before=2000, quota_failures=1, pending=pending)
+        self.store.save()
+        error = http_error(429, {"error": {"reason": "QUOTA_EXCEEDED"}}, {"Retry-After": "5"})
+        with patch.object(s.time, "time", return_value=2000), patch.object(s, "urlopen", side_effect=error) as request:
+            with self.assertRaises(s.SyncError) as caught:
+                self.api.request("GET", "/me")
+        self.assertEqual(caught.exception.code, 1)
+        self.assertEqual(request.call_count, 1)
+        saved = s.read_json(self.store.path)
+        self.assertTrue(saved["quota_blocked"])
+        self.assertEqual(saved["not_before"], 2000 + 2 * s.QUOTA_RETRY_BASE)
+        self.assertEqual(saved["quota_failures"], 2)
+        self.assertEqual(saved["pending"], pending)
+        restarted = s.Spotify(self.oauth, s.Store(self.store.path))
+        with patch.object(s.time, "time", return_value=2001), patch.object(s, "urlopen") as request:
+            with self.assertRaises(s.SyncError):
+                restarted.request("GET", "/me")
+            request.assert_not_called()
+
+    def test_quota_backoff_cap_never_shortens_spotify_retry_after(self):
+        self.store.data["quota_failures"] = 99
+        error = http_error(429, {"error": {"reason": "QUOTA_EXCEEDED"}}, {"Retry-After": "172800"})
+        with patch.object(s.time, "time", return_value=1000), patch.object(s, "urlopen", side_effect=error) as request:
+            with self.assertRaises(s.SyncError):
+                self.api.request("GET", "/me")
+        self.assertEqual(request.call_count, 1)
+        self.assertEqual(self.store.data["not_before"], 1000 + 172800)
+        self.assertEqual(self.store.data["quota_failures"], 6)
+
+    def test_legacy_quota_pause_without_deadline_waits_before_retrying(self):
+        self.store.data["quota_blocked"] = True
+        self.store.save()
+        with patch.object(s.time, "time", return_value=1000), patch.object(s, "urlopen") as request:
+            with self.assertRaises(s.SyncError) as caught:
+                self.api.request("GET", "/me")
+            request.assert_not_called()
+        self.assertEqual(caught.exception.code, 1)
+        saved = s.read_json(self.store.path)
+        self.assertTrue(saved["quota_blocked"])
+        self.assertEqual(saved["not_before"], 1000 + s.QUOTA_RETRY_BASE)
+        self.assertEqual(self.oauth.calls, [])
 
     def test_pagination_new_and_old_item_shapes_and_cache(self):
         metadata = {"snapshot_id": "one", "owner": {"id": "me"}}

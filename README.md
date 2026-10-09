@@ -303,14 +303,19 @@ On Linux replace `python` with `python3`. Acknowledgement clears the local pendi
 
 ### `QUOTA_EXCEEDED`
 
-The script saves a persistent pause and stops the watcher. Scheduled runs log the pause without sending more API requests. Reduce polling frequency and wait until Spotify quota is available, then run:
+The script saves the quota pause and a retry time. Scheduled runs and the watcher send no Spotify requests during that cooldown. The next run after the deadline retries automatically; **you normally do not need `resume` or to register your scheduled task again**. Existing saved pauses with a retry time also recover automatically.
+
+The cooldown respects Spotify's `Retry-After` and has a minimum of one hour. Consecutive quota failures increase that minimum to 2, 4, 8, 16, and then 24 hours. A longer Spotify cooldown still takes precedence. A successful sync or preview resets this backoff. Older pauses without a valid retry time get a one-hour cooldown on their first run.
+
+If Spotify still reports quota exceeded, the script saves a new cooldown and waits for a later run. It does not assume that the quota resets at a particular time. Keep polling infrequent and avoid repeated previews, which also consume API requests.
+
+The optional manual command remains available:
 
 ```powershell
 python run.py resume
-python run.py sync --dry-run
 ```
 
-On Linux replace `python` with `python3`. `resume` preserves timed cooldowns and pending writes. Spotify's quota documentation does not specify a universal reset time.
+On Linux replace `python` with `python3`. `resume` preserves the cooldown deadline and pending writes; it does not increase Spotify's allowance or allow an early request. Uncertain additions still require confirmation before further writes.
 
 ## Behavior and limits
 
