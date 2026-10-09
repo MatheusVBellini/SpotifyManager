@@ -283,7 +283,9 @@ On Windows, credential/token files inherit the project's access controls and are
 
 ### Uncertain previous addition
 
-If an append times out or Spotify returns a server error, the script saves the batch instead of blindly resending it. The next run checks the parent. If the batch is present, it can continue; if items are absent, it stops further writes.
+If an append times out or Spotify returns a server error, the script saves the batch instead of blindly resending it. The next run checks the parent using fresh contents rather than the cache. If the batch is present, it can continue; if items are absent, it stops further writes.
+
+After a successful append response, the script checks fresh contents and, if needed, rechecks after 2, 5, and 10 seconds. These checks never resend the addition. If the songs are still absent, it retains the pending record and stops before writing to further parents. Wait briefly and rerun so it can confirm the addition and continue propagation.
 
 Wait for Spotify to settle and inspect the parent manually. Once the uncertain request is resolved:
 

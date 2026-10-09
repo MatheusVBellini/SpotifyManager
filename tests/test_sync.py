@@ -38,7 +38,7 @@ class FakeAPI:
         self.fail_read = None
         self.fail_post = None
 
-    def read_playlist(self, pid):
+    def read_playlist(self, pid, force_refresh=False):
         if pid == self.fail_read:
             raise s.SyncError("inaccessible")
         return {"items": copy.deepcopy(self.contents[pid]), "skipped": 0,
@@ -147,6 +147,41 @@ class SyncTests(unittest.TestCase):
         self.assertEqual(api.posts, [])
         self.assertIn("pending", self.store.data)
 
+    def test_delayed_addition_confirmation_continues_to_ancestor_without_resending(self):
+        api = FakeAPI(self.store, {A: [], B: [], C: [track("x")]})
+        read = api.read_playlist
+        delayed = set()
+
+        def delayed_read(pid, force_refresh=False):
+            result = read(pid, force_refresh)
+            if force_refresh and api.posts and pid == api.posts[-1][0] and pid not in delayed:
+                delayed.add(pid)
+                return {**result, "items": []}
+            return result
+
+        with patch.object(api, "read_playlist", side_effect=delayed_read), patch.object(s.time, "sleep") as sleep:
+            self.run_sync(api, [{"parent": A, "children": [B]}, {"parent": B, "children": [C]}])
+        self.assertEqual(api.posts, [(B, [track("x")["uri"]]), (A, [track("x")["uri"]])])
+        self.assertEqual(api.contents[A], [track("x")])
+        self.assertEqual(sleep.call_count, 2)
+        self.assertNotIn("pending", self.store.data)
+
+    def test_confirmation_reads_are_bounded_and_preserve_pending_without_resending(self):
+        api = FakeAPI(self.store, {A: [], B: [track("x")]})
+        read = api.read_playlist
+
+        def invisible_read(pid, force_refresh=False):
+            result = read(pid, force_refresh)
+            return {**result, "items": []} if force_refresh else result
+
+        with patch.object(api, "read_playlist", side_effect=invisible_read) as reads, patch.object(s.time, "sleep") as sleep:
+            with self.assertRaises(s.SyncError):
+                self.run_sync(api, [{"parent": A, "children": [B]}])
+        self.assertEqual(len(api.posts), 1)
+        self.assertEqual(sum(call.kwargs.get("force_refresh", False) for call in reads.call_args_list), 4)
+        self.assertEqual([call.args[0] for call in sleep.call_args_list], [2, 5, 10])
+        self.assertIn("pending", s.read_json(self.store.path))
+
     def test_cycles_and_url_parsing(self):
         self.assertEqual(s.playlist_id(f"https://open.spotify.com/intl-br/playlist/{A}?si=123"), A)
         self.assertEqual(s.playlist_id(f"spotify:playlist:{A}"), A)
@@ -252,6 +287,19 @@ class HTTPTests(unittest.TestCase):
                                                            {"snapshot_id": "2"}, page, {"snapshot_id": "2"}]) as request:
             self.assertEqual(self.api.read_playlist(A)["snapshot_id"], "2")
             self.assertEqual(request.call_count, 6)
+
+    def test_pending_confirmation_bypasses_matching_snapshot_cache(self):
+        metadata = {"snapshot_id": "same", "owner": {"id": "me"}}
+        self.store.data["playlists"][A] = {"snapshot_id": "same", "items": [], "skipped": 0}
+        self.store.data["pending"] = {"parent": A, "items": [track("x")]}
+        self.store.save()
+        page = {"items": [{"item": {"uri": track("x")["uri"]}}], "next": None}
+        with patch.object(self.api, "request", side_effect=[metadata, page, metadata]) as request:
+            s.recover_pending(self.api, self.store)
+        self.assertEqual(request.call_count, 3)
+        self.assertTrue(all(call.args[0] == "GET" for call in request.call_args_list))
+        self.assertNotIn("pending", s.read_json(self.store.path))
+        self.assertEqual(self.store.data["playlists"][A]["items"], [track("x")])
 
     def test_refresh_preserves_refresh_token_when_not_rotated(self):
         token_path = Path(self.temp.name) / "token.json"

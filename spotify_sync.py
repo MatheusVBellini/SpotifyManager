@@ -370,11 +370,11 @@ class Spotify:
             raise SyncError(f"Playlist {pid} has no snapshot ID; cannot safely read it.")
         return result
 
-    def read_playlist(self, pid):
+    def read_playlist(self, pid, force_refresh=False):
         for attempt in range(3):
             before = self.metadata(pid)
             cached = self.store.data["playlists"].get(pid)
-            if cached and cached.get("snapshot_id") == before["snapshot_id"]:
+            if not force_refresh and cached and cached.get("snapshot_id") == before["snapshot_id"]:
                 return {**cached, "metadata": before}
             items, skipped, offset = [], 0, 0
             while True:
@@ -425,14 +425,24 @@ def missing_items(existing, candidates):
     return missing
 
 
-def recover_pending(api, store, acknowledge=False):
+def recover_pending(api, store, acknowledge=False, wait_for_visibility=False):
     pending = store.data.get("pending")
     if not pending:
         if acknowledge:
             LOG.info("No pending write to acknowledge.")
         return
-    current = api.read_playlist(pending["parent"])
-    missing = missing_items(current["items"], pending["items"])
+    # Never confirm an addition against a view cached before the request.
+    # After a successful response, tolerate a short delay in read visibility.
+    # These retries only read playlists: the append is never sent again.
+    delays = (0, 2, 5, 10) if wait_for_visibility and not acknowledge else (0,)
+    for delay in delays:
+        if delay:
+            LOG.info("Addition not visible yet; checking again in %d seconds without resending.", delay)
+            time.sleep(delay)
+        current = api.read_playlist(pending["parent"], force_refresh=True)
+        missing = missing_items(current["items"], pending["items"])
+        if not missing:
+            break
     if missing and not acknowledge:
         raise SyncError(f"Uncertain previous add: {len(missing)} items still absent from parent {pending['parent']}. "
                         "No further writes allowed. Wait, inspect Spotify, then use acknowledge-pending if resolved.")
@@ -488,7 +498,7 @@ def sync(api, store, parents, order, all_ids, dry_run=False, include_episodes=Fa
                 store.save()
                 raise
             # Keep journal until a fresh, consistent read confirms the append.
-            recover_pending(api, store)
+            recover_pending(api, store, wait_for_visibility=True)
             appended.update(aliases_of(batch))
             total += len(batch)
             LOG.info("Confirmed %d additions to %s.", len(batch), pid)
