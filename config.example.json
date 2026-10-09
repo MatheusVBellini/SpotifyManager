@@ -1,0 +1,13 @@
+{
+  "include_episodes": false,
+  "relationships": [
+    {
+      "parent": "PASTE_ALL_MUSIC_PLAYLIST_URL_OR_ID",
+      "children": ["PASTE_ROCK_PLAYLIST_URL_OR_ID", "PASTE_JAZZ_PLAYLIST_URL_OR_ID"]
+    },
+    {
+      "parent": "PASTE_ROCK_PLAYLIST_URL_OR_ID",
+      "children": ["PASTE_INDIE_ROCK_PLAYLIST_URL_OR_ID"]
+    }
+  ]
+}

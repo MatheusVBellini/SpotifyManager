@@ -1,0 +1,6 @@
+.spotify-sync/
+credentials*.json
+!credentials.example.json
+*.log
+__pycache__/
+.venv/
