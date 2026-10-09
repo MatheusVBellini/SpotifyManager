@@ -1,9 +1,10 @@
 param(
-    [Parameter(Mandatory = $true)][string]$PythonPath,
+    [string]$PythonPath = (Join-Path $PSScriptRoot '.venv\Scripts\python.exe'),
     [string]$TaskName = 'SpotifyManager Playlist Sync',
     [ValidateRange(5, 1440)][int]$EveryMinutes = 15
 )
 $ErrorActionPreference = 'Stop'
+if (-not (Test-Path -LiteralPath $PythonPath -PathType Leaf)) { throw 'Project Python not found. Run python setup_env.py first, or provide -PythonPath.' }
 $resolvedPython = (Resolve-Path -LiteralPath $PythonPath).Path
 if (-not (Test-Path -LiteralPath $resolvedPython -PathType Leaf)) { throw 'Python executable does not exist.' }
 if (-not (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'config.json'))) { throw 'Create config.json and authorize first.' }

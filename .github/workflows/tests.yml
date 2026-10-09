@@ -1,0 +1,31 @@
+name: Windows and Linux tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.10', '3.13']
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Prepare project environment
+        run: python setup_env.py
+      - name: Check launcher
+        run: python run.py --help
+      - name: Run offline tests
+        run: python -m unittest discover -s tests -v
+      - name: Check Linux scheduling helper
+        if: runner.os == 'Linux'
+        run: bash run-sync.sh --help
