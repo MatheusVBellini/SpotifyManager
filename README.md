@@ -127,6 +127,8 @@ The Client ID identifies the app. Your private account access/refresh tokens are
 
 In Spotify, use **Share -> Copy link to playlist**. Replace every placeholder, and remove any example relationship you do not need:
 
+The committed `config.json` can contain configured playlist IDs. For another account, replace those references with your own playlists, or start from `config.example.json`.
+
 ```json
 {
   "include_episodes": false,
@@ -151,6 +153,8 @@ In Spotify, use **Share -> Copy link to playlist**. Replace every placeholder, a
 - **`include_episodes`** defaults to `false`; set it to `true` to include podcast episodes.
 
 Playlist URLs, 22-character playlist IDs, and `spotify:playlist:...` URIs are accepted. Nested relationships propagate in one run regardless of configuration order. Cycles and self-references are rejected.
+
+List the direct children of each parent. For example, if Indie Rock feeds Rock and Rock feeds All Music, All Music only needs Rock in its children; Indie Rock reaches it through Rock. A child can still feed several independent parents, and shared songs are added once per parent.
 
 The script automatically reads `credentials.json` beside the configuration. You can choose other files with `--config` and `--credentials`:
 
