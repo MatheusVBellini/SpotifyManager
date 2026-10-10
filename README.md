@@ -1,118 +1,123 @@
 # SpotifyManager
 
-Keep your Spotify parent playlists filled with the songs from their children.
+Build larger Spotify playlists from smaller ones. SpotifyManager copies missing songs from configured child playlists into their parents, with support for multiple relationships and nested hierarchies.
 
 ```text
 Indie Rock -> Rock -> All Music
 Jazz ----------------> All Music
 ```
 
-Add a song to a child playlist, and the next sync appends it to the configured parents if it is missing. Multiple relationships and nested parents are supported. Existing songs and playlist order are preserved; **nothing is deleted**. Your first sync also copies songs already in the children.
+Add a song to Indie Rock, and the next sync adds it to Rock and All Music. Songs already present in a parent are skipped.
 
-## What you need
+## Scope
 
-- **Python 3.10 or newer**, installed on your computer. No third-party packages are required.
-- A Spotify developer app whose owner has active **Premium**.
-- A Spotify account on the app's allowlist.
-- Playlists you **own or collaborate on**, with editing access to the parents.
+SpotifyManager is a local command-line tool for managing personal playlists through the Spotify Web API.
 
-Following somebody's public playlist does not grant API access to its contents. Spotify requirements were checked on **October 9, 2026**. [Quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes), [playlist access](https://developer.spotify.com/documentation/web-api/reference/get-playlists-items).
+- **Add-only synchronization:** append missing songs without removing or reordering existing items.
+- **Multiple relationships:** combine several children into one parent, or send one child to several parents.
+- **Nested inheritance:** propagate songs through several levels in a single run.
+- **Preview mode:** inspect proposed additions before changing playlists.
+- **Scheduled operation:** run manually, keep a watcher open, or use the operating system's scheduler.
+- **Recovery safeguards:** retain progress, respect API cooldowns, and check uncertain additions before allowing more writes.
 
-## 1. Create your Spotify app
+Relationships refer to playlists, rather than Spotify's playlist folders. Synchronization flows from children to parents; it does not copy changes back down, mirror deletions, or remove existing duplicates. The first sync includes songs already in the children. Later changes are picked up by the next successful run, rather than immediately when a song is added in Spotify.
 
-1. Open the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard), sign in, and create an app or select an existing one.
-2. Select **Web API** if asked for the API type.
-3. Register this exact redirect URI in the app settings:
+## Requirements
 
-   ```text
-   http://127.0.0.1:8888/callback
-   ```
+- Python **3.10 or newer**, with `venv` and `pip` support.
+- Windows, macOS, or Linux.
+- A Spotify developer app and an account authorized to use it.
+- Ownership or collaborator access to every configured playlist, including permission to edit the parents.
+- Internet access for authorization and synchronization.
 
-4. Copy the app's **Client ID**.
-5. Under **Users Management**, ensure the Spotify account you will log in with is allowed to use the app.
+The application uses Python's standard library and requires no third-party Python packages. `requirements.txt` is the dependency manifest used by setup.
 
-The script uses [Authorization Code with PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow). No client secret is needed. Use `127.0.0.1`; Spotify does not accept `localhost` for this redirect. [Redirect URI requirements](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri).
+For current Spotify Development Mode apps, the app owner needs **Spotify Premium**, and the app supports up to **five authorized users**. Accounts must be on the app's allowlist. Following a public playlist alone does not grant access to its items through the current endpoint. Check Spotify's [quota modes](https://developer.spotify.com/documentation/web-api/concepts/quota-modes) and [playlist access requirements](https://developer.spotify.com/documentation/web-api/reference/get-playlists-items) before setting up an app. These requirements were reviewed on October 10, 2026.
 
-## 2. Download and set up the project
+## Installation
 
-Clone the repository, or download its ZIP from GitHub and extract it. This repository is private, so you need access to clone or download it.
+Clone the repository:
 
 ```console
 git clone https://github.com/MatheusVBellini/SpotifyManager.git
 cd SpotifyManager
 ```
 
-If you downloaded a ZIP, open a terminal inside the extracted folder containing `spotify_sync.py`. Run the commands below from that project folder; no particular drive, username, or installation location is required.
+Alternatively, download and extract the repository ZIP, then open a terminal in the folder containing `setup_env.py`. Run the following setup commands from that folder.
 
-### Windows (PowerShell)
+### Windows
 
-Install [Python 3.10 or newer](https://www.python.org/downloads/) and make it available as `python`. Then run:
+Install [Python](https://www.python.org/downloads/windows/), then open PowerShell in the project folder:
 
 ```powershell
 python --version
 python setup_env.py
 ```
 
-If your Windows installation uses the `py` launcher instead, use `py -3 setup_env.py` and `py -3 run.py ...` in place of the `python` commands.
+If Python is available through the `py` launcher instead, use:
 
-### Linux
-
-Use Python 3.10 or newer with virtual environment support. On Ubuntu or Debian, install the system prerequisites if needed:
-
-```bash
-sudo apt update
-sudo apt install python3 python3-venv
+```powershell
+py -3 --version
+py -3 setup_env.py
 ```
 
-For other distributions, install Python and its venv support with your distribution's package manager. [Ubuntu Python setup](https://documentation.ubuntu.com/ubuntu-for-developers/howto/python-setup/).
+### macOS
+
+Install a supported Python version from the [macOS downloads page](https://www.python.org/downloads/macos/). With the python.org installer, also run **Install Certificates.command** from its Python folder in Applications to enable HTTPS connections. See the [official macOS installation guide](https://docs.python.org/3/using/mac.html).
+
+In Terminal, from the project folder:
 
 ```bash
 python3 --version
 python3 setup_env.py
 ```
 
-### What setup does
+### Linux
 
-`setup_env.py` finds the project using its own location. It creates `.venv/` **inside the project**, installs `requirements.txt` using that environment's Python, and creates any missing configuration files from their templates. Existing configuration and credentials are preserved.
+Install Python 3.10 or newer with virtual environment support. On Ubuntu or Debian:
 
-`run.py` automatically selects `.venv/Scripts/python.exe` on Windows or `.venv/bin/python` on Linux. You do not need to activate the environment or define shell variables. `requirements.txt` currently contains only comments because the app uses Python's built-in libraries.
-
-All application code, launchers, templates, and the dependency manifest live in this repository. A normal installed Python interpreter is the system prerequisite. Recreate `.venv` on each computer or after relocating the checkout; virtual environments are machine-specific and should not be copied or committed. [Python virtual environment documentation](https://docs.python.org/3/library/venv.html).
-
-```text
-SpotifyManager/
-  setup_env.py             Creates the local environment and missing settings
-  run.py                   Runs commands using that environment
-  spotify_sync.py          Spotify synchronization implementation
-  requirements.txt        Dependency manifest
-  config.json             Committable playlist relationships
-  credentials.example.json
-  credentials.json        Private app settings, created locally and ignored
-  .venv/                  Local Python environment, ignored
-  .spotify-sync/          Private tokens and state, created at login and ignored
-  run-sync.ps1             Windows sync/logging helper
-  run-sync.sh              Linux sync/logging helper
-  register-task.ps1        Windows scheduling helper
+```bash
+sudo apt update
+sudo apt install python3 python3-venv
 ```
 
-## 3. Configure your app and playlists
+For other distributions, use the distribution's package manager to install Python and its `venv`/`pip` support. [Ubuntu's Python guide](https://ubuntu.com/developers/docs/howto/python-setup/) provides additional setup information.
 
-The two JSON files keep app settings separate from playlist relationships:
+```bash
+python3 --version
+python3 setup_env.py
+```
 
-| File | Contents | Commit to GitHub? |
-| --- | --- | --- |
-| `config.json` | Parent/child relationships and episode setting | Yes |
-| `credentials.json` | Your Client ID and redirect URI | No; ignored |
-| `config.example.json` | Playlist template | Yes |
-| `credentials.example.json` | App settings template with placeholders | Yes |
-| `.spotify-sync/` | Access/refresh tokens and sync state | No; ignored |
-| `.venv/` | Local Python environment | No; ignored |
+### Local environment
 
-Setup creates any missing JSON files without overwriting your settings. Edit both files before authorizing or syncing.
+Setup creates `.venv` inside the project, installs `requirements.txt`, and creates missing settings files from the example templates. Existing settings are preserved. No environment activation is needed for the commands in this guide: they select the project interpreter directly.
 
-### Edit `credentials.json`
+If the project is moved or installed on another computer, recreate `.venv` in its new location using `setup_env.py`. Virtual environments depend on their original paths and base Python installation; see the [Python venv documentation](https://docs.python.org/3/library/venv.html).
 
-Replace the Client ID placeholder with the value from your Spotify app:
+## Spotify app setup
+
+1. Open the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and create an app, or select an existing one.
+2. Select **Web API** when choosing the API type.
+3. Add this redirect URI in the app settings:
+
+   ```text
+   http://127.0.0.1:8888/callback
+   ```
+
+4. Copy the app's **Client ID**.
+5. In **Users Management**, ensure the Spotify account used for synchronization is allowed to use the app.
+
+Authorization uses [Authorization Code with PKCE](https://developer.spotify.com/documentation/web-api/tutorials/code-pkce-flow), so no client secret is required. Keep the configured redirect URI consistent with the app settings. Spotify permits HTTP for explicit loopback addresses such as `127.0.0.1`, but does not accept `localhost`. [Redirect URI requirements](https://developer.spotify.com/documentation/web-api/concepts/redirect_uri).
+
+The authorization requests these permissions: `playlist-read-private`, `playlist-read-collaborative`, `playlist-modify-private`, and `playlist-modify-public`. See Spotify's [scope documentation](https://developer.spotify.com/documentation/web-api/concepts/scopes).
+
+## Configuration
+
+Two JSON files separate Spotify app settings from playlist relationships.
+
+### App settings: `credentials.json`
+
+Set the Client ID copied from the developer dashboard:
 
 ```json
 {
@@ -121,19 +126,32 @@ Replace the Client ID placeholder with the value from your Spotify app:
 }
 ```
 
-The Client ID identifies the app. Your private account access/refresh tokens are saved separately in `.spotify-sync/` after authorization.
+Setup creates this file from `credentials.example.json` if it is missing. Account access and refresh tokens are saved in `.spotify-sync/` after authorization. Keep those tokens private; later runs refresh authorization automatically when possible.
 
-### Edit `config.json`
+### Playlist relationships: `config.json`
 
-In Spotify, use **Share -> Copy link to playlist**. Replace every placeholder, and remove any example relationship you do not need:
+For a first-time installation, use `config.example.json` as the starting point and replace every playlist reference with the intended playlists. When updating an existing installation, keep the configured file.
 
-The committed `config.json` can contain configured playlist IDs. For another account, replace those references with your own playlists, or start from `config.example.json`.
+To start from the template on Windows:
+
+```powershell
+Copy-Item config.example.json config.json
+```
+
+On macOS or Linux:
+
+```bash
+cp config.example.json config.json
+```
+
+These copy commands replace `config.json`. Edit it before running authorization or synchronization. In Spotify, use **Share → Copy link to playlist** to obtain each reference.
 
 ```json
 {
   "include_episodes": false,
   "relationships": [
     {
+      "_comment": "All Music receives Rock and Jazz",
       "parent": "PASTE_ALL_MUSIC_PLAYLIST_URL_OR_ID",
       "children": [
         "PASTE_ROCK_PLAYLIST_URL_OR_ID",
@@ -141,6 +159,7 @@ The committed `config.json` can contain configured playlist IDs. For another acc
       ]
     },
     {
+      "_comment": "Rock receives Indie Rock",
       "parent": "PASTE_ROCK_PLAYLIST_URL_OR_ID",
       "children": ["PASTE_INDIE_ROCK_PLAYLIST_URL_OR_ID"]
     }
@@ -148,74 +167,83 @@ The committed `config.json` can contain configured playlist IDs. For another acc
 }
 ```
 
-- **`parent`** receives missing songs.
-- **`children`** supply songs. One child can feed several parents.
-- **`include_episodes`** defaults to `false`; set it to `true` to include podcast episodes.
+| Setting | Meaning |
+| --- | --- |
+| `parent` | Playlist that receives missing items. |
+| `children` | Playlists that supply items to that parent. |
+| `include_episodes` | Set to `true` to include podcast episodes; defaults to `false`. |
+| `_comment` | Optional descriptive text, ignored by the script. |
 
-Playlist URLs, 22-character playlist IDs, and `spotify:playlist:...` URIs are accepted. Nested relationships propagate in one run regardless of configuration order. Cycles and self-references are rejected.
+Playlist URLs, 22-character IDs, and `spotify:playlist:...` URIs are accepted. Standard JSON does not support `#` or `//` comments or trailing commas; use `_comment` fields for notes.
 
-List the direct children of each parent. For example, if Indie Rock feeds Rock and Rock feeds All Music, All Music only needs Rock in its children; Indie Rock reaches it through Rock. A child can still feed several independent parents, and shared songs are added once per parent.
+List the direct children of each parent. In the example, Indie Rock reaches All Music through Rock, so it does not need another relationship directly to All Music. Nested relationships are processed in the correct order regardless of their order in the file. Cycles and self-references are rejected.
 
-The script automatically reads `credentials.json` beside the configuration. You can choose other files with `--config` and `--credentials`:
+## Usage
 
-```powershell
-python run.py sync --config other-playlists.json --credentials credentials.other.json --dry-run
-```
-
-On Linux use `python3` instead of `python`. Explicit relative paths are resolved from your terminal's current folder. Default settings are located beside the app, so `run.py` also works when invoked from a different folder. Keep alternate credentials files named `credentials*.json`, or add an explicit Git ignore rule for another filename.
-
-## 4. Authorize, preview, and sync
-
-After filling in both files, run these commands **one at a time**.
+Run the following commands **one at a time**, after configuring both JSON files.
 
 ### Windows
 
 ```powershell
-python run.py auth
-python run.py sync --dry-run
-python run.py sync
+.\.venv\Scripts\python.exe run.py auth
+.\.venv\Scripts\python.exe run.py sync --dry-run
+.\.venv\Scripts\python.exe run.py sync
 ```
 
-### Linux
+### macOS and Linux
 
 ```bash
-python3 run.py auth
-python3 run.py sync --dry-run
-python3 run.py sync
+.venv/bin/python run.py auth
+.venv/bin/python run.py sync --dry-run
+.venv/bin/python run.py sync
 ```
 
-**Authorize:** a browser opens. Log in to the account that owns or collaborates on your playlists and approve permissions. Finish within five minutes. Future runs refresh tokens automatically; authorize again if access is revoked. If the browser does not open, add `--no-browser` to the auth command and open its printed URL on the same computer.
+| Command | Behavior |
+| --- | --- |
+| `auth` | Opens a browser for Spotify login and permission approval. |
+| `sync --dry-run` | Reads playlists and previews additions without writing to Spotify playlists. |
+| `sync` | Runs one synchronization and exits. |
 
-**Preview:** check the missing-item counts and `Would add` messages. Preview reads Spotify and simulates additions to nested parents without changing any playlist. It can refresh tokens, update the local cache, or reconcile a previous pending write.
+During authorization, sign in to the account with access to the configured playlists and finish within five minutes. If the browser does not open, add `--no-browser` and open the printed URL in a browser on the same computer. Reauthorize if access is revoked or token refresh fails.
 
-**Sync:** append the missing items.
+The preview shows missing-item counts and `Would add` messages, including propagation through nested parents. It still makes API requests and may refresh tokens or update local cache/recovery state, so it consumes API quota.
 
-Run this again whenever you want to check for more songs. Removing a song from a child never removes it from a parent. Removing it from a parent while it remains in a child makes it eligible to be added again on a later sync.
+Run `sync` again to check for new songs, or configure a schedule below. Removing a song from a child does not remove it from a parent. Removing it from a parent while it remains in a child makes it eligible to be added again.
 
-## 5. Schedule automatic checks
+### Options and logging
 
-### Windows Task Scheduler
+Use `--log-file sync.log` to append logs, or `--config` and `--credentials` to choose different settings files. For example, on macOS or Linux:
 
-After a successful manual sync, create a task that checks every 15 minutes:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\register-task.ps1 -EveryMinutes 15
+```bash
+.venv/bin/python run.py sync --config other-playlists.json --credentials credentials.other.json --dry-run
+.venv/bin/python run.py sync --log-file sync.log
+.venv/bin/python run.py --help
 ```
 
-The helper finds the virtual environment and app files relative to its own location. It creates **SpotifyManager Playlist Sync** under your Windows account, starting after one minute and repeating while your account is logged in and the computer is awake. It uses `pythonw.exe` when available to avoid a console window. Overlapping scheduled runs are ignored. An optional `-PythonPath` can override the project interpreter.
+On Windows, use `.\.venv\Scripts\python.exe` in place of `.venv/bin/python`. Explicit relative file paths are resolved from the terminal's current folder. Default settings are located beside the application; credentials default to `credentials.json` beside the selected configuration.
 
-Change `15` to your preferred interval in minutes; the helper accepts 5 to 1440. Longer intervals reduce quota usage. This is polling: changes appear after the next successful check.
+## Automatic synchronization
 
-### Check activity
+Authorize and complete a manual sync before scheduling. Use the same operating system account for setup, authorization, and scheduling. A daily schedule is a conservative starting point; more frequent checks consume more API quota. Choose one scheduling method for each installation.
+
+### Windows: Task Scheduler
+
+From PowerShell in the project folder, register a daily task:
 
 ```powershell
-Get-Content -LiteralPath '.\sync.log' -Tail 30
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\register-task.ps1 -EveryMinutes 1440
+```
+
+This creates **SpotifyManager Playlist Sync**, with its first run about one minute after registration and a repeat interval of 24 hours. Use another value from **5 to 1440** for a different interval in minutes. It uses the project interpreter directly and runs while the account is logged in and the computer is awake. Missed starts can run when the computer becomes available again; overlapping scheduled runs are ignored.
+
+Check the task and recent logs:
+
+```powershell
 Get-ScheduledTaskInfo -TaskName 'SpotifyManager Playlist Sync'
+Get-Content -LiteralPath '.\sync.log' -Tail 30
 ```
 
-Logs append indefinitely. Archive or truncate `sync.log` periodically when no run is active.
-
-### Disable, enable, or remove the task
+Manage the task with:
 
 ```powershell
 Disable-ScheduledTask -TaskName 'SpotifyManager Playlist Sync'
@@ -223,135 +251,157 @@ Enable-ScheduledTask -TaskName 'SpotifyManager Playlist Sync'
 Unregister-ScheduledTask -TaskName 'SpotifyManager Playlist Sync'
 ```
 
-The helper refuses to overwrite an existing task. To change its interval or after moving the project, remove the old task and register it again. For a manual sync with logging, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run-sync.ps1`; append `-Preview` for a preview.
+To change the interval or project location, remove the old task and register it again. The helper refuses to overwrite an existing task. For a manual run with logging, use `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\run-sync.ps1`; add `-Preview` to preview additions.
 
-### Linux cron
+### macOS: launchd
 
-After a successful manual sync, the Linux helper provides the same project-relative configuration and logging:
+From Terminal in the project folder, create a user LaunchAgent for **18:00 every day**. The following generates paths from the current folder, including folder names containing spaces:
 
 ```bash
-bash run-sync.sh --dry-run
-bash run-sync.sh
+.venv/bin/python - <<'PY'
+from pathlib import Path
+import plistlib
+
+root = Path.cwd().resolve()
+agent = Path.home() / "Library/LaunchAgents/local.spotifymanager.sync.plist"
+agent.parent.mkdir(parents=True, exist_ok=True)
+settings = {
+    "Label": "local.spotifymanager.sync",
+    "ProgramArguments": ["/bin/bash", str(root / "run-sync.sh")],
+    "WorkingDirectory": str(root),
+    "StartCalendarInterval": {"Hour": 18, "Minute": 0},
+    "StandardOutPath": str(root / "scheduler.log"),
+    "StandardErrorPath": str(root / "scheduler.log"),
+}
+with agent.open("wb") as handle:
+    plistlib.dump(settings, handle)
+agent.chmod(0o600)
+print(agent)
+PY
+
+launchctl bootstrap "gui/$(id -u)" "$HOME/Library/LaunchAgents/local.spotifymanager.sync.plist"
+```
+
+Change `Hour` and `Minute` before creating the file to select another time. This user agent runs while the account is logged in. A calendar run missed during sleep is handled after waking; a run missed while powered off waits until the next scheduled time. See Apple's [scheduled jobs guide](https://developer.apple.com/library/archive/documentation/MacOSX/Conceptual/BPSystemStartup/Chapters/ScheduledJobs.html) and [LaunchAgent documentation](https://support.apple.com/guide/terminal/apdc6c1077b-5d5d-4d35-9c19-60f2397b2369/mac).
+
+Check its status and logs:
+
+```bash
+launchctl print "gui/$(id -u)/local.spotifymanager.sync"
 tail -n 30 sync.log
 ```
 
-To schedule it, generate a cron line using your checkout's current location:
+Unload it before changing its schedule or moving the project:
 
 ```bash
-printf '*/15 * * * * /bin/bash "%s/run-sync.sh"\n' "$(pwd -P)"
+launchctl bootout "gui/$(id -u)" "$HOME/Library/LaunchAgents/local.spotifymanager.sync.plist"
+```
+
+Then regenerate and load it again. To remove scheduling permanently, unload it and delete `local.spotifymanager.sync.plist` from `~/Library/LaunchAgents`.
+
+### Linux: cron
+
+From the project folder, generate an entry for **18:00 every day**:
+
+```bash
+printf '0 18 * * * /bin/bash "%s/run-sync.sh"\n' "$(pwd -P)"
 crontab -e
 ```
 
-Paste the printed line into your crontab. It checks every 15 minutes and writes to the project's `sync.log`, even when cron starts from another directory. The machine must be awake. Use the same OS account that authorized Spotify. If you move the checkout, recreate `.venv` and regenerate the cron line. Remove the line with `crontab -e` to stop scheduling.
+Paste the printed line into the crontab and save it. It uses an absolute project path and writes to `sync.log`. The machine must be running at the scheduled time; cron does not catch up on missed runs. The schedule uses the machine's local time. Ensure the cron service is installed and enabled for the distribution.
 
-### Alternative: keep a terminal running
+To change or remove the schedule, edit the entry with `crontab -e`. If the project moves, regenerate the entry after recreating `.venv`.
 
-```powershell
-python run.py sync --watch 900 --log-file sync.log
-```
+### Alternative: terminal watcher
 
-On Linux use `python3 run.py sync --watch 900 --log-file sync.log`. This waits 900 seconds after each run. Press **Ctrl+C** to stop. Transient read/cooldown failures are retried on the next cycle; errors needing attention stop the watcher. Choose either the watcher or an OS schedule for the same project.
-
-## GitHub and private files
-
-Commit the code, `config.json`, `requirements.txt`, and placeholder templates. Committing the configuration shares its playlist links and relationships with anyone who can read the repository.
-
-`.gitignore` excludes `credentials*.json`, `.spotify-sync/`, `.venv/`, and logs. It allows `credentials.example.json` because that template contains placeholders. Keep real values out of example files and do not force-add ignored files.
-
-Verify before committing:
+Keep a terminal open to repeat synchronization, waiting 24 hours after each run:
 
 ```powershell
-git check-ignore credentials.json .spotify-sync/token.json .venv/pyvenv.cfg
-git status --short
+.\.venv\Scripts\python.exe run.py sync --watch 86400 --log-file sync.log
 ```
 
-The first command should list the private/local paths. Credentials and tokens should not appear in the status listing. Ignore rules do not remove files already tracked in another checkout.
+On macOS or Linux:
 
-On Windows, credential/token files inherit the project's access controls and are not encrypted; keep them in your user folder. Generated token/state files have restrictive permissions on POSIX systems.
+```bash
+.venv/bin/python run.py sync --watch 86400 --log-file sync.log
+```
+
+`--watch` accepts an interval in seconds, with a minimum of 300. Press **Ctrl+C** to stop. Transient failures are retried on a later cycle; errors requiring attention stop the watcher. The terminal must remain open and the computer must stay running.
 
 ## Troubleshooting
 
-| Problem | What to check |
+| Problem | Resolution |
 | --- | --- |
-| Invalid Client ID or playlist reference | Replace every placeholder in both JSON files. |
-| Credentials file missing | Copy the credentials template and fill it in. |
-| Credentials in the public config | Move app settings to `credentials.json`. |
-| Authorization fails | Check the Client ID and exact redirect URI in Spotify app settings. |
-| HTTP 401 | Run `auth` again if automatic token refresh cannot restore access. |
-| HTTP 403 | Check Premium, allowlist, permissions, and owner/collaborator access. |
-| HTTP 404 | Check the playlist ID and account access. |
-| Rate limited / cooldown active | Wait for the cooldown; increase the interval if this happens often. |
-| Another instance holds the lock | Stop the watcher or wait for the other run to finish. |
-| Task already exists | Remove it before registering a replacement. |
-| Task result `0x2` | Inspect `sync.log` for the error needing attention. |
+| Windows says Python was not found | Install Python, reopen PowerShell, and try `py -3 setup_env.py`. After setup, use the explicit `.venv` interpreter shown above. |
+| Missing or invalid virtual environment | Run setup; if the project was moved, move the old `.venv` aside and recreate it. |
+| HTTPS certificate error on macOS | Run **Install Certificates.command** supplied with the python.org installer. |
+| Invalid JSON | Remove comments/trailing commas; use double-quoted strings and JSON booleans `true`/`false`. |
+| Invalid Client ID or playlist reference | Replace all placeholders in both settings files. |
+| Authorization fails | Check the Client ID, exact redirect URI, account allowlist, and browser callback. |
+| HTTP 401 | Run `auth` again if token refresh cannot restore access. |
+| HTTP 403 | Check the app owner's Premium status, allowlist, scopes, and playlist ownership/collaboration permissions. |
+| HTTP 404 | Check the playlist reference and account access. |
+| Another instance holds the lock | Wait for the current run to finish, or stop the other watcher. |
+| Scheduled run fails | Inspect `sync.log`; on macOS also inspect `scheduler.log`. Check the interpreter and project paths. |
 
-### Uncertain previous addition
+Logs append over time. Archive or truncate them periodically while no run is active.
 
-If an append times out or Spotify returns a server error, the script saves the batch instead of blindly resending it. The next run checks the parent using fresh contents rather than the cache. If the batch is present, it can continue; if items are absent, it stops further writes.
+### API rate limits and quota cooldowns
 
-After a successful append response, the script checks fresh contents and, if needed, rechecks after 2, 5, and 10 seconds. These checks never resend the addition. If the songs are still absent, it retains the pending record and stops before writing to further parents. Wait briefly and rerun so it can confirm the addition and continue propagation.
+Spotify applies both short-term [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits) and Development Mode [request quotas](https://developer.spotify.com/documentation/web-api/concepts/quota-modes). Development quotas are shared across apps belonging to the same developer account; creating another app does not provide an independent allowance.
 
-Wait for Spotify to settle and inspect the parent manually. Once the uncertain request is resolved:
+For `QUOTA_EXCEEDED`, SpotifyManager saves a retry deadline. Scheduled runs and the watcher make no Spotify requests during the cooldown, and the next run after the deadline retries automatically. **No manual `resume` command is normally needed.**
 
-```powershell
-python run.py acknowledge-pending
-python run.py sync --dry-run
-python run.py sync
-```
+The cooldown honors `Retry-After`, with a minimum of one hour. Repeated quota failures increase that minimum to 2, 4, 8, 16, and then 24 hours. Longer server-requested cooldowns take precedence. A successful sync or preview resets this backoff. The script does not assume a fixed quota reset time.
 
-On Linux replace `python` with `python3`. Acknowledgement clears the local pending record after another read, even if some items are absent, allowing a later sync to add missing items. Do not acknowledge while the original request might still be running. Do not delete state to bypass this protection.
+Increase the scheduling interval if limits recur. Repeated previews also consume requests. The optional `resume` command preserves the cooldown deadline and pending additions; it cannot increase the allowance or enable an early retry.
 
-### `QUOTA_EXCEEDED`
+### Uncertain additions
 
-The script saves the quota pause and a retry time. Scheduled runs and the watcher send no Spotify requests during that cooldown. The next run after the deadline retries automatically; **you normally do not need `resume` or to register your scheduled task again**. Existing saved pauses with a retry time also recover automatically.
+If an addition times out, returns a server error, or cannot be confirmed in fresh playlist contents, the script saves the pending batch and stops further writes. A later sync checks it again and continues automatically when all items are present.
 
-The cooldown respects Spotify's `Retry-After` and has a minimum of one hour. Consecutive quota failures increase that minimum to 2, 4, 8, 16, and then 24 hours. A longer Spotify cooldown still takes precedence. A successful sync or preview resets this backoff. Older pauses without a valid retry time get a one-hour cooldown on their first run.
-
-If Spotify still reports quota exceeded, the script saves a new cooldown and waits for a later run. It does not assume that the quota resets at a particular time. Keep polling infrequent and avoid repeated previews, which also consume API requests.
-
-The optional manual command remains available:
+If items remain absent, wait for Spotify to settle and inspect the affected parent. Once the original request is known to be resolved, acknowledge the pending batch and preview again:
 
 ```powershell
-python run.py resume
+.\.venv\Scripts\python.exe run.py acknowledge-pending
+.\.venv\Scripts\python.exe run.py sync --dry-run
+.\.venv\Scripts\python.exe run.py sync
 ```
 
-On Linux replace `python` with `python3`. `resume` preserves the cooldown deadline and pending writes; it does not increase Spotify's allowance or allow an early request. Uncertain additions still require confirmation before further writes.
+On macOS or Linux, replace `.\.venv\Scripts\python.exe` with `.venv/bin/python`.
 
-## Behavior and limits
+Acknowledgement performs another read, then clears the pending record even if items are absent. A later sync may add them. Only acknowledge after resolving the uncertainty: a late original addition could otherwise create duplicates. Keep `.spotify-sync/` intact so the recovery checks retain their state.
 
-- Duplicate checks use Spotify URIs; different releases/remasters can remain separate items. Existing duplicates are preserved. Relinking aliases are considered when supplied by Spotify.
-- Local files, null items, and unsupported entries are skipped and counted in logs. A valid catalog URI can still refer to a song unavailable for playback in your country.
-- All playlists are read before the first addition. Snapshot checks detect changes during pagination and before append batches. Changes to children during a run are picked up later.
-- Reads use bounded retries, stable contents are cached, and ordinary 429 responses honor `Retry-After`.
-- A failed later batch does not undo earlier additions. A rerun continues using current playlist contents.
-- Spotify's append API has no idempotency key or conditional snapshot parameter. Duplicate prevention cannot be guaranteed if another user/app adds the same song between the read and append, or an uncertain request commits very late. Use one manager per overlapping set of parents and retain its state.
+## Behavior and limitations
 
-Exit codes: **0** success; **1** transient failure, cooldown, or lock contention; **2** attention needed; **130** interrupted.
+- Duplicate checks use Spotify item URIs, including relinking aliases when available. Different releases or remasters can remain separate items, and existing duplicates are preserved.
+- Local files, null items, and unsupported entries are skipped and reported. Catalog availability for playback can vary by country.
+- Playlist snapshot checks detect changes during reads and before append batches. Changes made to children during a run are picked up on a later run.
+- A partial failure does not undo confirmed additions. Subsequent runs compare against current playlist contents.
+- Spotify's append endpoint does not offer an idempotency key or conditional snapshot parameter. Concurrent edits by other apps/users, or a very late uncertain request, can still cause duplicates. Use one manager for overlapping parent playlists.
+- The project uses the current `/playlists/{id}/items` endpoints. Spotify API permissions and quotas can change independently of this application.
 
-## Spotify API notes for 2026
+| Exit code | Meaning |
+| --- | --- |
+| `0` | Completed successfully. |
+| `1` | Transient failure, cooldown, or lock contention. |
+| `2` | Configuration, authorization, or recovery issue requiring attention. |
+| `130` | Interrupted. |
 
-The script uses the current `/playlists/{id}/items` endpoints, the `item` response field, read pages of 50, and append batches of up to 100. It tolerates the legacy response field while using current endpoints. [Get Playlist Items](https://developer.spotify.com/documentation/web-api/reference/get-playlists-items), [Add Items](https://developer.spotify.com/documentation/web-api/reference/add-items-to-playlist).
+## Tests
 
-New Development Mode apps allow five authorized users; existing higher counts are grandfathered. The [July 2026 changelog](https://developer.spotify.com/documentation/web-api/references/changes/july-2026) raised the app limit to **25** and introduced quota counting across a developer's apps. Ordinary rate limits still apply. [Migration guide](https://developer.spotify.com/documentation/web-api/tutorials/february-2026-migration-guide), [rate limits](https://developer.spotify.com/documentation/web-api/concepts/rate-limits).
+The test suite uses simulated Spotify responses and does not access an account.
 
-The [February announcement's March 9 update](https://developer.spotify.com/blog/2026-02-06-update-on-developer-access-and-platform-security) postponed endpoint changes for older integrations. New apps remained under the February restrictions; Extended Quota Mode apps are unaffected by those endpoint changes. This project targets current documented endpoints for a personal app.
-
-Authorization requests `playlist-read-private`, `playlist-read-collaborative`, `playlist-modify-private`, and `playlist-modify-public`. [Scope documentation](https://developer.spotify.com/documentation/web-api/concepts/scopes).
-
-## Remote Linux servers
-
-Authorization's browser must reach the script's loopback callback on the server. For a headless server, use an appropriate SSH tunnel, run `python3 run.py auth --no-browser` on the server, and open the printed URL in your local browser through that tunnel. Later scheduled runs need no browser. Keep credentials and tokens on the server private.
-
-## Run the tests
+Windows:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-On Linux:
+macOS and Linux:
 
 ```bash
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Tests use fake Spotify responses and never access your account. They cover setup, project-relative launching, configuration separation, authorization, propagation, duplicate handling, pagination, snapshots, token refresh, rate limits, quota pauses, locking, batching, and uncertain-write recovery. GitHub Actions checks Windows and Linux on Python 3.10 and 3.13. Live validation requires your app details, playlist IDs, and authorization.
+Tests cover configuration, setup, authorization, nested propagation, duplicate checks, pagination, caching, rate limits, quota recovery, locking, and uncertain additions. GitHub Actions runs the suite on Windows and Linux with Python 3.10 and 3.13.
