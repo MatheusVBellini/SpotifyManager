@@ -1,4 +1,4 @@
-name: Windows and Linux tests
+name: Cross-platform tests
 
 on:
   push:
@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python: ['3.10', '3.13']
     runs-on: ${{ matrix.os }}
     steps:
@@ -26,6 +26,8 @@ jobs:
         run: python run.py --help
       - name: Run offline tests
         run: python -m unittest discover -s tests -v
-      - name: Check Linux scheduling helper
-        if: runner.os == 'Linux'
+      - name: Run offline playlist demo
+        run: python examples/demo.py
+      - name: Check POSIX scheduling helper
+        if: runner.os != 'Windows'
         run: bash run-sync.sh --help

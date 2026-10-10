@@ -1,4 +1,5 @@
 .spotify-sync/
+config.json
 credentials*.json
 !credentials.example.json
 *.log

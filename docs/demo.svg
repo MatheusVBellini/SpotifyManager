@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">SpotifyManager playlist synchronization example</title>
+<desc id="desc">Fictional playlists: Indie Rock feeds Rock, and Rock and Jazz feed All Music. One sync adds three missing items. Repeating it adds nothing.</desc>
+<rect width="1600" height="900" fill="#f5f7fa"/>
+<rect x="64" y="66" width="8" height="62" rx="4" fill="#26a96c"/>
+<text x="94" y="116.2" font-family="Segoe UI, Arial, sans-serif" font-size="64" fill="#142337" font-weight="700">SpotifyManager</text>
+<text x="64" y="179.4" font-family="Segoe UI, Arial, sans-serif" font-size="28" fill="#53667c" font-weight="400">Add missing tracks from child playlists to their parents.</text>
+<rect x="1205" y="78" width="331" height="42" rx="21" fill="#e5f6eb"/>
+<text x="1223" y="101.8" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#19734b" font-weight="700">PYTHON  /  PERSONAL AUTOMATION</text>
+<polyline points="414,370 625,370" fill="none" stroke="#9aa9ba" stroke-width="4"/>
+<polygon points="625,370 612,362 612,378" fill="#9aa9ba"/>
+<polyline points="964,370 1175,370" fill="none" stroke="#9aa9ba" stroke-width="4"/>
+<polygon points="1175,370 1162,362 1162,378" fill="#9aa9ba"/>
+<polyline points="964,578 1068,578 1068,485 1175,485" fill="none" stroke="#9aa9ba" stroke-width="4"/>
+<polygon points="1175,485 1162,477 1162,493" fill="#9aa9ba"/>
+<rect x="84" y="265" width="330" height="230" rx="22" fill="#ffffff" stroke="#dce3eb" stroke-width="2"/>
+<text x="110" y="302.8" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#617287" font-weight="700">CHILD PLAYLIST</text>
+<text x="110" y="346.6" font-family="Segoe UI, Arial, sans-serif" font-size="32" fill="#142337" font-weight="700">Indie Rock</text>
+<rect x="110" y="375" width="278" height="45" rx="9" fill="#f0f3f7"/>
+<text x="124" y="402.8" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#31445c" font-weight="400">Northern Lights</text>
+<rect x="110" y="430" width="278" height="45" rx="9" fill="#f0f3f7"/>
+<text x="124" y="457.8" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#31445c" font-weight="400">City Walk</text>
+<rect x="634" y="265" width="330" height="230" rx="22" fill="#ffffff" stroke="#dce3eb" stroke-width="2"/>
+<text x="660" y="302.8" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#617287" font-weight="700">PARENT AND CHILD</text>
+<text x="660" y="346.6" font-family="Segoe UI, Arial, sans-serif" font-size="32" fill="#142337" font-weight="700">Rock</text>
+<rect x="660" y="375" width="278" height="45" rx="9" fill="#f0f3f7"/>
+<text x="674" y="402.8" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#31445c" font-weight="400">City Walk</text>
+<rect x="660" y="430" width="278" height="45" rx="9" fill="#e5f6eb"/>
+<text x="674" y="457.8" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#19734b" font-weight="700">+ Northern Lights</text>
+<rect x="634" y="525" width="330" height="177" rx="22" fill="#ffffff" stroke="#dce3eb" stroke-width="2"/>
+<text x="660" y="562.8" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#617287" font-weight="700">CHILD PLAYLIST</text>
+<text x="660" y="606.6" font-family="Segoe UI, Arial, sans-serif" font-size="32" fill="#142337" font-weight="700">Jazz</text>
+<rect x="660" y="635" width="278" height="45" rx="9" fill="#f0f3f7"/>
+<text x="674" y="662.8" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#31445c" font-weight="400">Blue Hour</text>
+<rect x="1184" y="265" width="330" height="340" rx="22" fill="#ffffff" stroke="#dce3eb" stroke-width="2"/>
+<text x="1210" y="302.8" font-family="Segoe UI, Arial, sans-serif" font-size="16" fill="#617287" font-weight="700">PARENT PLAYLIST</text>
+<text x="1210" y="346.6" font-family="Segoe UI, Arial, sans-serif" font-size="32" fill="#142337" font-weight="700">All Music</text>
+<rect x="1210" y="375" width="278" height="45" rx="9" fill="#f0f3f7"/>
+<text x="1224" y="402.8" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#31445c" font-weight="400">Blue Hour</text>
+<rect x="1210" y="430" width="278" height="45" rx="9" fill="#e5f6eb"/>
+<text x="1224" y="457.8" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#19734b" font-weight="700">+ City Walk</text>
+<rect x="1210" y="485" width="278" height="45" rx="9" fill="#e5f6eb"/>
+<text x="1224" y="512.8" font-family="Segoe UI, Arial, sans-serif" font-size="21" fill="#19734b" font-weight="700">+ Northern Lights</text>
+<text x="1210" y="570.2" font-family="Segoe UI, Arial, sans-serif" font-size="19" fill="#617287" font-weight="400">Existing songs stay in place.</text>
+<rect x="84" y="755" width="686" height="74" rx="16" fill="#142337"/>
+<text x="110" y="798.0" font-family="Segoe UI, Arial, sans-serif" font-size="25" fill="#ffffff" font-weight="700">One sync: 3 additions across 2 parents</text>
+<rect x="800" y="755" width="714" height="74" rx="16" fill="#e5f6eb"/>
+<text x="827" y="798.0" font-family="Segoe UI, Arial, sans-serif" font-size="25" fill="#19734b" font-weight="700">Repeat sync: 0 additions, no duplicates</text>
+<text x="84" y="869.4" font-family="Segoe UI, Arial, sans-serif" font-size="18" fill="#617287" font-weight="400">Fictional data • Offline demo • No Spotify account access</text>
+</svg>

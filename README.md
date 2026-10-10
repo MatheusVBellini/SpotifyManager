@@ -1,11 +1,11 @@
 # SpotifyManager
 
+[![Cross-platform tests](https://github.com/MatheusVBellini/SpotifyManager/actions/workflows/tests.yml/badge.svg)](https://github.com/MatheusVBellini/SpotifyManager/actions/workflows/tests.yml)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue)](LICENSE)
+
 Build larger Spotify playlists from smaller ones. SpotifyManager copies missing songs from configured child playlists into their parents, with support for multiple relationships and nested hierarchies.
 
-```text
-Indie Rock -> Rock -> All Music
-Jazz ----------------> All Music
-```
+![Example: Indie Rock flows into Rock, and Rock and Jazz flow into All Music. Three missing items are added while existing items are preserved.](docs/demo.svg)
 
 Add a song to Indie Rock, and the next sync adds it to Rock and All Music. Songs already present in a parent are skipped.
 
@@ -21,6 +21,24 @@ SpotifyManager is a local command-line tool for managing personal playlists thro
 - **Recovery safeguards:** retain progress, respect API cooldowns, and check uncertain additions before allowing more writes.
 
 Relationships refer to playlists, rather than Spotify's playlist folders. Synchronization flows from children to parents; it does not copy changes back down, mirror deletions, or remove existing duplicates. The first sync includes songs already in the children. Later changes are picked up by the next successful run, rather than immediately when a song is added in Spotify.
+
+## Try the demo
+
+After installation, run a small example with fictional playlists. It exercises the same synchronization logic with an in-memory Spotify substitute: no account, credentials, network requests, or changes to personal settings are needed.
+
+Windows:
+
+```powershell
+.\.venv\Scripts\python.exe examples/demo.py
+```
+
+macOS and Linux:
+
+```bash
+.venv/bin/python examples/demo.py
+```
+
+The demo previews three additions, synchronizes two levels of parents, and runs again to show that no items are added twice. See the [walkthrough](docs/demo.md) for the input and results.
 
 ## Requirements
 
@@ -131,6 +149,8 @@ Setup creates this file from `credentials.example.json` if it is missing. Accoun
 ### Playlist relationships: `config.json`
 
 For a first-time installation, use `config.example.json` as the starting point and replace every playlist reference with the intended playlists. When updating an existing installation, keep the configured file.
+
+Setup creates `config.json` from the template when it is missing. Each installation keeps its own playlist settings.
 
 To start from the template on Windows:
 
@@ -404,4 +424,10 @@ macOS and Linux:
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Tests cover configuration, setup, authorization, nested propagation, duplicate checks, pagination, caching, rate limits, quota recovery, locking, and uncertain additions. GitHub Actions runs the suite on Windows and Linux with Python 3.10 and 3.13.
+Tests cover configuration, setup, authorization, nested propagation, duplicate checks, pagination, caching, rate limits, quota recovery, locking, and uncertain additions. GitHub Actions runs the suite and offline demo on Windows, macOS, and Linux with Python 3.10 and 3.13.
+
+## License
+
+SpotifyManager is available under the [PolyForm Noncommercial License 1.0.0](LICENSE). It permits noncommercial use, modification, and distribution under its terms. Commercial use or distribution requires separate permission from the copyright holder. This is a source-available project with a commercial restriction.
+
+[Copyright notice](NOTICE.md). Licensing requests can be directed to [Matheus V Bellini](https://github.com/MatheusVBellini).
